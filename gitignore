@@ -1,0 +1,31 @@
+# ══════════════════════════════════════════════════════════════════
+# AgroChat — .gitignore
+# ══════════════════════════════════════════════════════════════════
+
+# ── Secretos (NUNCA subir al repo) ────────────────────────────────
+.env
+*.env
+!.env.example          # sí se sube la plantilla sin valores reales
+
+# ── Datos y modelos (volúmenes pesados) ───────────────────────────
+data/raw/
+data/duckdb/
+data/chroma/
+data/processed/
+data/models/
+
+# ── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── Jupyter ───────────────────────────────────────────────────────
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# ── IDE ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

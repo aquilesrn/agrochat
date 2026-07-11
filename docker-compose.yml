@@ -1,0 +1,56 @@
+# AgroChat - Docker Compose
+# Secrets en .env (no subir al repo)
+
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agrochat-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  agrochat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agrochat
+    ports:
+      - "8501:8501"
+      - "8888:8888"
+      - "8889:8889"
+    volumes:
+      - ./data/raw:/app/data/raw
+      - ./data/duckdb:/app/data/duckdb
+      - ./data/chroma:/app/data/chroma
+      - ./data/processed:/app/data/processed
+      - ./data/models:/app/data/models
+      - ./scripts:/app/scripts
+      - ./config:/app/config
+      - ./notebooks:/app/notebooks
+      - ./app:/app/app
+      - chroma_cache:/root/.cache/chroma
+    env_file:
+      - .env
+    environment:
+      - DUCKDB_PATH=/app/data/duckdb/agrochat.duckdb
+      - CHROMA_PATH=/app/data/chroma
+      - OLLAMA_HOST=http://agrochat-ollama:11434
+      - PYTHONUNBUFFERED=1
+      # Desactiva el file watcher de Streamlit para evitar errores
+      # con transformers/torchvision al inspeccionar sentence-transformers
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+    command: [
+      "streamlit", "run", "/app/app/main.py",
+      "--server.port=8501",
+      "--server.address=0.0.0.0",
+      "--server.headless=true",
+      "--server.fileWatcherType=none"
+    ]
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  chroma_cache:
