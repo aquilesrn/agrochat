@@ -47,11 +47,11 @@ MSYS_NO_PATHCONV=1 docker exec -it agrochat python scripts/etl_coyuntura.py \
 
 # 4. AEMET: descargar inventario de estaciones
 MSYS_NO_PATHCONV=1 docker exec -it agrochat python scripts/aemet_descarga.py \
-  --api-key TU_KEY --inventario --db /app/data/duckdb/agrochat.duckdb
+  --api-key AEMET_API_KEY --inventario --db /app/data/duckdb/agrochat.duckdb
 
 # 5. AEMET: descargar datos climáticos mensuales 2014-2025
 MSYS_NO_PATHCONV=1 docker exec -it agrochat python scripts/aemet_descarga.py \
-  --api-key TU_KEY --datos --anio-ini 2014 --anio-fin 2025 --db /app/data/duckdb/agrochat.duckdb
+  --api-key AEMET_API_KEY --datos --anio-ini 2014 --anio-fin 2025 --db /app/data/duckdb/agrochat.duckdb
 
 # 6. Cargar todo en ChromaDB (fragmentos textuales para RAG)
 MSYS_NO_PATHCONV=1 docker exec -it agrochat python scripts/cargar_chromadb.py \
