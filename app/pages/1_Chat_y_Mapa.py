@@ -66,7 +66,7 @@ if df_mapa is not None and not df_mapa.empty and "cod_provincia" in df_mapa.colu
 
     VARS_MAPA = {
         "rend_kg_ha":       "Rendimiento (kg/ha)",
-        "sup_media_ha":     "Superficie media (ha)",
+        "sup_media_ha":     "Superficie total (ha)",
         "temp_media_c":     "Temperatura media (C)",
         "precip_media_mm":  "Precipitacion media (mm)",
         "hr_media_pct":     "Humedad relativa (%)",
@@ -93,6 +93,22 @@ if df_mapa is not None and not df_mapa.empty and "cod_provincia" in df_mapa.colu
                 "precip_media_mm": "Blues",
                 "hr_media_pct":    "Teal",
             }
+
+            # ── Resaltado: provincia concreta o top-5 en rankings ─────
+            resaltado = st.session_state.get("mapa_resaltado", {})
+            cod_resaltar = None
+            if resaltado.get("cod_resaltar"):
+                # Pregunta por una provincia concreta → resaltar esa
+                cod_resaltar = resaltado["cod_resaltar"]
+            elif resaltado.get("es_ranking") and "rend_kg_ha" in df_mapa.columns:
+                # Pregunta tipo ranking → resaltar el top-5 por rendimiento
+                top5 = (
+                    df_mapa.dropna(subset=["rend_kg_ha"])
+                           .nlargest(5, "rend_kg_ha")["cod_provincia"]
+                           .tolist()
+                )
+                cod_resaltar = top5
+
             fig = mapa_coropletico(
                 df_mapa,
                 col_provincia="provincia",
@@ -101,6 +117,7 @@ if df_mapa is not None and not df_mapa.empty and "cod_provincia" in df_mapa.colu
                 titulo=vars_disponibles[col_var],
                 etiqueta_color=vars_disponibles[col_var],
                 escala=escalas.get(col_var, "Greens"),
+                cod_resaltar=cod_resaltar,
             )
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
@@ -120,11 +137,11 @@ if df_mapa is not None and not df_mapa.empty and "cod_provincia" in df_mapa.colu
             rename = {
                 "provincia":       "Provincia",
                 "rend_kg_ha":      "Rend. (kg/ha)",
-                "sup_media_ha":    "Sup. (ha)",
+                "sup_media_ha":    "Sup. total (ha)",
                 "temp_media_c":    "Temp. (C)",
                 "precip_media_mm": "Precip. (mm)",
                 "hr_media_pct":    "HR (%)",
-                "n_periodos":      "Meses",
+                "n_periodos":      "Años",
             }
             cols_show = [c for c in rename if c in df_mapa.columns]
             df_show = df_mapa[cols_show].rename(columns=rename)
