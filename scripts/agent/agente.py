@@ -183,6 +183,31 @@ clima_provincial(vista): cod_provincia, anio, mes,
   t_media_c, precip_media_mm, hr_media_pct
 NOTAS: nivel='nacional' para total España. prod_avance en MILES de toneladas.
 Filtrar: AND sup_avance IS NOT NULL AND prod_avance IS NOT NULL. LIMIT 20.
+
+MUY IMPORTANTE — LOS AVANCES SON ACUMULATIVOS:
+Para un mismo cultivo/nivel/año hay VARIAS filas (una por periodo_mes), y cada
+fila REPITE la superficie y la producción estimadas HASTA ESE MES. NO son valores
+mensuales independientes. Por tanto:
+- NUNCA uses SUM(sup_avance) ni SUM(prod_avance) sobre varios meses: multiplicarías
+  la cifra (ej.: sumar 8 avances de Burgos da 2,4M ha, imposible).
+- Para el dato de un año usa SIEMPRE el avance de CIERRE DE CAMPAÑA = el periodo_mes
+  MÁS ALTO disponible para ese cultivo/nivel/año.
+- Patrón recomendado con QUALIFY (DuckDB):
+    SELECT provincia, sup_avance, prod_avance,
+           ROUND(prod_avance/sup_avance*1000000,1) AS rend_kg_ha
+    FROM avances
+    WHERE nivel='provincia' AND regimen='total' AND cultivo LIKE '%CEBADA%'
+      AND periodo_anio=2023 AND sup_avance>0 AND prod_avance IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY cod_provincia, cultivo, periodo_anio
+        ORDER BY periodo_mes DESC) = 1
+    ORDER BY rend_kg_ha DESC
+- Si agrupas VARIOS cultivos en un territorio (ej. "cereales"), primero coge el
+  cierre de campaña de cada cultivo (subconsulta/CTE con el QUALIFY anterior) y
+  DESPUÉS suma: SUM(sup_avance), SUM(prod_avance), y el rendimiento como
+  SUM(prod_avance)/SUM(sup_avance)*1000000 (media ponderada por superficie).
+- rend_kg_ha = prod_avance(miles t)/sup_avance(ha)*1000000 (miles_t->kg). Rango real: cereal
+  ~1.000-6.000 kg/ha, maíz ~8.000-13.000 kg/ha. Un valor de 55.000 es un ERROR.
 """
 
 _llm_sql = None  # se inicializa en crear_agente()
@@ -205,6 +230,25 @@ def consultar_datos(consulta: str) -> str:
         log.info(f"SQL: {sql[:120]}")
     except Exception as e:
         return f"Error generando SQL: {e}"
+
+    # Guardrail: los avances son acumulativos. Si el SQL suma sup/prod_avance sin
+    # seleccionar el cierre de campaña (QUALIFY / ROW_NUMBER / MAX(periodo_mes)),
+    # es casi seguro que inflará las cifras. Reintentamos una vez avisando al LLM.
+    sql_l = sql.lower()
+    suma_avance = ("sum(sup_avance" in sql_l or "sum(prod_avance" in sql_l)
+    tiene_cierre = ("qualify" in sql_l or "row_number" in sql_l
+                    or "max(periodo_mes" in sql_l)
+    if suma_avance and not tiene_cierre:
+        aviso = (prompt + "\n\nATENCIÓN: tu SQL suma avances acumulativos sin coger "
+                 "el cierre de campaña, lo que inflaría las cifras. Reescríbelo "
+                 "seleccionando primero el periodo_mes máximo por cultivo/territorio/"
+                 "año (QUALIFY ROW_NUMBER()...=1) y agregando después.")
+        try:
+            raw = _llm_sql.invoke(aviso).content.strip()
+            sql = re.sub(r"```(?:sql)?", "", raw).strip().strip("`").strip()
+            log.info(f"SQL (reintento): {sql[:120]}")
+        except Exception as e:
+            return f"Error generando SQL: {e}"
     try:
         con = duckdb.connect(DB_PATH, read_only=True)
         df  = con.execute(sql).df()
